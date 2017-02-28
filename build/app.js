@@ -73,21 +73,23 @@
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Factories__ = __webpack_require__(2);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Factory__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__FloydWarshall__ = __webpack_require__(7);
+
 
 
 
 class Game {
 
-    constructor(links, factoryCount, linkCount, moveMap) {
+    constructor(params) {
         this.actions = [];
         this.factories = new __WEBPACK_IMPORTED_MODULE_0__Factories__["a" /* default */]();
         this.troops = [];
         this.bombs = [];
-        this.links = links;
         this.turn = 0;
         this.bombs_left = 2;
         this.queue = [];
-        this.moveMap = moveMap;
+        this.distances = params.distances;
+        this.moveMap = __webpack_require__.i(__WEBPACK_IMPORTED_MODULE_2__FloydWarshall__["a" /* default */])(params.distances);
     }
 
     initTick() {
@@ -125,7 +127,7 @@ class Game {
                         return factory.id === item.factory_id_from
                     });
 
-                    this.move(myFactory, factory, myFactory.freeRobots());
+                    this.moveDirect(myFactory, factory, myFactory.freeRobots());
                 }
             });
             this.queue = [];
@@ -134,8 +136,6 @@ class Game {
         this.factories.attacking().forEach(factory => {
 
             this.factories.defending().forEach(defendingFactory => {
-
-                dump(`Defending Factory [${defendingFactory.id}]`);
 
                 var troops_needed = defendingFactory.reinforcementsNeeded();
 
@@ -200,11 +200,24 @@ class Game {
     move(from_factory, to_factory, count) {
         if(count < 1) return;
 
+        if(!from_factory.isMine()) return;
+
         from_factory.reserveForAttack(count);
 
         var newTarget = this.moveMap[from_factory.id][to_factory.id];
 
         var action = 'MOVE ' + from_factory.id + ' ' + newTarget + ' ' + count;
+        this.actions.push(action);
+    }
+
+    moveDirect(from_factory, to_factory, count) {
+        if(count < 1) return;
+
+        if(!from_factory.isMine()) return;
+
+        from_factory.reserveForAttack(count);
+
+        var action = 'MOVE ' + from_factory.id + ' ' + to_factory.id + ' ' + count;
         this.actions.push(action);
     }
 
@@ -421,17 +434,7 @@ class Factory {
     }
 
     distanceTo(factory) {
-        return this.game.links.find(link => {
-            return ((
-                link.factory_1_id === factory.id &&
-                link.factory_2_id === this.id
-            )
-            ||
-            (
-                link.factory_1_id === this.id &&
-                link.factory_2_id === factory.id
-            ));
-        }).distance;
+        return this.game.distances[this.id][factory.id];
     }
 
     closestEnemyFactory() {
@@ -567,12 +570,14 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__constants__ = __webpack_require__(1);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__constants___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__constants__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Game__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__initialize__ = __webpack_require__(6);
 /*
  | Author: Tim Huijgen
- | Date Created: 25 Februari 2017
+ | Date Created: 25 February 2017
  |
  | Ghost in the CELL
  */
+
 
 
 
@@ -593,70 +598,79 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 
 
 
+var game = new __WEBPACK_IMPORTED_MODULE_1__Game__["a" /* default */](__webpack_require__.i(__WEBPACK_IMPORTED_MODULE_2__initialize__["a" /* default */])());
 
-var factoryCount = parseInt(readline()); // the number of factories
-var linkCount = parseInt(readline()); // the number of links between factories
-
-var links = [];
-var distances = [];
-var moveMap = [];
-
-for (var i = 0; i < linkCount; i++) {
-    var inputs = readline().split(' ');
-    var factory1 = parseInt(inputs[0]);
-    var factory2 = parseInt(inputs[1]);
-    var distance = parseInt(inputs[2]);
-
-    if(!distances[factory1]) {
-        distances[factory1] = [];
-    }
-
-    if(!distances[factory2]) {
-        distances[factory2] = [];
-    }
-
-    distances[factory1][factory2] = distance;
-    distances[factory2][factory1] = distance;
-
-    links.push({
-        'factory_1_id': factory1,
-        'factory_2_id': factory2,
-        'distance': distance
-    });
+while(true) {
+    game.tick();
 }
 
-function initializeMoveMap(dist) {
-    var size = dist.length;
+/***/ }),
+/* 6 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
 
-    for(var l = 0; l < size; l += 1) {
-        for(var m = 0; m < size; m += 1) {
-            if ( !moveMap[ l ] ) {
-                moveMap[ l ] = [];
+"use strict";
+/* harmony default export */ __webpack_exports__["a"] = function() {
+    var factoryCount = parseInt(readline()); // the number of factories
+    var linkCount = parseInt(readline()); // the number of links between factories
+    var distances = [];
+
+
+    for (var i = 0; i < linkCount; i++) {
+        var inputs = readline().split(' ');
+        var factory1 = parseInt(inputs[0]);
+        var factory2 = parseInt(inputs[1]);
+        var distance = parseInt(inputs[2]);
+
+        if(!distances[factory1]) {
+            distances[factory1] = [];
+        }
+
+        if(!distances[factory2]) {
+            distances[factory2] = [];
+        }
+
+        distances[factory1][factory2] = distance;
+        distances[factory2][factory1] = distance;
+    }
+
+    return {
+        distances,
+        factoryCount,
+        linkCount
+    }
+};
+
+/***/ }),
+/* 7 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony default export */ __webpack_exports__["a"] = function (distances) {
+    var size = distances.length,
+        moveMap = [];
+
+    for (var l = 0; l < size; l += 1) {
+        for (var m = 0; m < size; m += 1) {
+            if (!moveMap[l]) {
+                moveMap[l] = [];
             }
-            moveMap[ l ].push( m );
+            moveMap[l].push(m);
         }
     }
 
     for (var k = 0; k < size; k += 1) {
         for (var i = 0; i < size; i += 1) {
             for (var j = 0; j < size; j += 1) {
-                if (dist[i][j] > dist[i][k] + dist[k][j]) {
-                    dist[i][j] = dist[i][k] + dist[k][j];
+                if (distances[i][j] > distances[i][k] + distances[k][j]) {
+                    distances[i][j] = distances[i][k] + distances[k][j];
                     moveMap[i][j] = k;
                 }
             }
         }
     }
-    return dist;
-}
+    return moveMap;
+};
 
-initializeMoveMap(distances);
-
-var game = new __WEBPACK_IMPORTED_MODULE_1__Game__["a" /* default */](links, factoryCount, linkCount, moveMap);
-
-while(true) {
-    game.tick();
-}
 
 /***/ })
 /******/ ]);

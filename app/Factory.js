@@ -56,17 +56,7 @@ export default class Factory {
     }
 
     distanceTo(factory) {
-        return this.game.links.find(link => {
-            return ((
-                link.factory_1_id === factory.id &&
-                link.factory_2_id === this.id
-            )
-            ||
-            (
-                link.factory_1_id === this.id &&
-                link.factory_2_id === factory.id
-            ));
-        }).distance;
+        return this.game.distances[this.id][factory.id];
     }
 
     closestEnemyFactory() {

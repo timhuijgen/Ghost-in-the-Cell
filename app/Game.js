@@ -1,18 +1,19 @@
 import Factories from './Factories';
 import Factory from './Factory';
+import FloydWarshall from './FloydWarshall';
 
 export default class Game {
 
-    constructor(links, factoryCount, linkCount, moveMap) {
+    constructor(params) {
         this.actions = [];
         this.factories = new Factories();
         this.troops = [];
         this.bombs = [];
-        this.links = links;
         this.turn = 0;
         this.bombs_left = 2;
         this.queue = [];
-        this.moveMap = moveMap;
+        this.distances = params.distances;
+        this.moveMap = FloydWarshall(params.distances);
     }
 
     initTick() {
@@ -50,7 +51,7 @@ export default class Game {
                         return factory.id === item.factory_id_from
                     });
 
-                    this.move(myFactory, factory, myFactory.freeRobots());
+                    this.moveDirect(myFactory, factory, myFactory.freeRobots());
                 }
             });
             this.queue = [];
@@ -59,8 +60,6 @@ export default class Game {
         this.factories.attacking().forEach(factory => {
 
             this.factories.defending().forEach(defendingFactory => {
-
-                dump(`Defending Factory [${defendingFactory.id}]`);
 
                 var troops_needed = defendingFactory.reinforcementsNeeded();
 
@@ -125,11 +124,24 @@ export default class Game {
     move(from_factory, to_factory, count) {
         if(count < 1) return;
 
+        if(!from_factory.isMine()) return;
+
         from_factory.reserveForAttack(count);
 
         var newTarget = this.moveMap[from_factory.id][to_factory.id];
 
         var action = 'MOVE ' + from_factory.id + ' ' + newTarget + ' ' + count;
+        this.actions.push(action);
+    }
+
+    moveDirect(from_factory, to_factory, count) {
+        if(count < 1) return;
+
+        if(!from_factory.isMine()) return;
+
+        from_factory.reserveForAttack(count);
+
+        var action = 'MOVE ' + from_factory.id + ' ' + to_factory.id + ' ' + count;
         this.actions.push(action);
     }
 
