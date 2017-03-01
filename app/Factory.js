@@ -203,6 +203,10 @@ export default class Factory {
         return this.production * 2;
     }
 
+    increase() {
+        this.game.increase(this);
+    }
+
     dump() {
         var props = {};
         for(var key in this) {

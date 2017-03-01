@@ -151,24 +151,29 @@ class Game {
 
 
     move(from_factory, to_factory, count) {
-        var newTarget = this.moveMap[from_factory.id][to_factory.id];
-        this._move(from_factory, newTarget, count);
-    }
-
-    moveDirect(from_factory, to_factory, count) {
         this._move(from_factory, to_factory, count);
     }
 
-    _move(from_factory, to_factory, count) {
+    moveDirect(from_factory, to_factory, count) {
+        this._move(from_factory, to_factory, count, true);
+    }
+
+    _move(from_factory, to_factory, count, direct = false) {
         if(count < 1) return;
 
         if(!from_factory.isMine()) return;
 
         from_factory.reserveForAttack(count);
-        to_factory.reinforcementsIncoming(count);
+        if(to_factory.isMine()) {
+            to_factory.reinforcementsIncoming(count);
+        }
 
-        var action = 'MOVE ' + from_factory.id + ' ' + to_factory.id + ' ' + count;
-        this.actions.push(action);
+        var target = direct
+            ? to_factory.id
+            : this.moveMap[from_factory.id][to_factory.id];
+
+        var action = ['MOVE', from_factory.id, target, count];
+        this.actions.push(action.join(' '));
     }
 
     increase(factory) {
@@ -444,7 +449,7 @@ class Factories extends Array {
     checkIncrease () {
         this.filter(factory => {
             return factory.freeRobots() > 40 && factory.production !== 3;
-        }).forEach(factory => this.game.increase(factory));
+        }).forEach(factory => factory.increase());
     }
 
 }
@@ -659,6 +664,10 @@ class Factory {
 
     margin() {
         return this.production * 2;
+    }
+
+    increase() {
+        this.game.increase(this);
     }
 
     dump() {

@@ -92,7 +92,7 @@ export default class Factories extends Array {
     checkIncrease () {
         this.filter(factory => {
             return factory.freeRobots() > 40 && factory.production !== 3;
-        }).forEach(factory => this.game.increase(factory));
+        }).forEach(factory => factory.increase());
     }
 
 }
