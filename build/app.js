@@ -63,7 +63,7 @@
 /******/ 	__webpack_require__.p = "";
 
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 5);
+/******/ 	return __webpack_require__(__webpack_require__.s = 7);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -71,9 +71,13 @@
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Factories__ = __webpack_require__(2);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Factory__ = __webpack_require__(3);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__FloydWarshall__ = __webpack_require__(7);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Factories__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Factory__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Bombs__ = __webpack_require__(8);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Queue__ = __webpack_require__(9);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__FloydWarshall__ = __webpack_require__(5);
+
+
 
 
 
@@ -83,13 +87,12 @@ class Game {
     constructor(params) {
         this.actions = [];
         this.factories = new __WEBPACK_IMPORTED_MODULE_0__Factories__["a" /* default */]();
+        this.bombs = new __WEBPACK_IMPORTED_MODULE_2__Bombs__["a" /* default */](this);
+        this.queue = new __WEBPACK_IMPORTED_MODULE_3__Queue__["a" /* default */](this);
         this.troops = [];
-        this.bombs = [];
         this.turn = 0;
-        this.bombs_left = 2;
-        this.queue = [];
         this.distances = params.distances;
-        this.moveMap = __webpack_require__.i(__WEBPACK_IMPORTED_MODULE_2__FloydWarshall__["a" /* default */])(params.distances);
+        this.moveMap = __webpack_require__.i(__WEBPACK_IMPORTED_MODULE_4__FloydWarshall__["a" /* default */])(params.distances);
     }
 
     initTick() {
@@ -99,14 +102,13 @@ class Game {
         this.actions = [];
         this.factories = new __WEBPACK_IMPORTED_MODULE_0__Factories__["a" /* default */]();
         this.troops = [];
-        this.bombs = [];
 
         for (var i = 0; i < entityCount; i++) {
             var inputs = readline().split(' ');
             var entity = getEntityProps(inputs);
 
             if(TROOP === entity.type) this.troops.push(entity);
-            if(BOMB === entity.type) this.bombs.push(entity);
+            if(BOMB === entity.type) this.bombs.update(entity);
             if(FACTORY === entity.type) this.factories.push(new __WEBPACK_IMPORTED_MODULE_1__Factory__["a" /* default */](entity, this));
         }
 
@@ -116,22 +118,9 @@ class Game {
     tick() {
         this.initTick();
 
-        if(this.queue.length) {
-            this.queue.forEach(item => {
-                if(item.action === 'attack') {
-                    var factory = this.factories.find(factory => {
-                        return factory.id === item.factory_id_to
-                    });
+        this.queue.handle();
 
-                    var myFactory = this.factories.find(factory => {
-                        return factory.id === item.factory_id_from
-                    });
-
-                    this.moveDirect(myFactory, factory, myFactory.freeRobots());
-                }
-            });
-            this.queue = [];
-        }
+        this.bombs.handle();
 
         this.factories.attacking().forEach(factory => {
 
@@ -172,27 +161,6 @@ class Game {
 
         });
 
-        if(this.canBomb()) {
-            var enemy = this.factories.enemy().filter(factory => {
-                return factory.production >= 2 && factory.count >= 8
-            }).sort((a, b) => {
-                return b.threat() - a.threat();
-            }).first();
-
-            var factory;
-            if (enemy) {
-                if (factory = enemy.closestEnemyFactory()) {
-                    this.bomb(factory, enemy);
-                    this.queue.push({
-                        action: 'attack',
-                        factory_id_to: enemy.id,
-                        factory_id_from: factory.id
-                    });
-                }
-            }
-        }
-
-
         this.execute();
     }
 
@@ -223,17 +191,6 @@ class Game {
 
     message(message) {
         this.actions.push('MSG ' + message);
-    }
-
-    bomb(from_factory, to_factory) {
-        var action = 'BOMB ' + from_factory.id + ' ' + to_factory.id;
-
-        this.bombs_left--;
-        this.actions.push(action);
-    }
-
-    canBomb() {
-        return this.bombs_left > 0;
     }
 
     execute() {
@@ -296,10 +253,46 @@ global.flip = function(num) {
 
 Array.prototype.first = function() { return (this.length > 0) ? this[0] : false; };
 Array.prototype.last = function() { return (this.length > 0) ? this[this.length - 1] : false; };
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(4)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(6)))
 
 /***/ }),
 /* 2 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony default export */ __webpack_exports__["a"] = function() {
+    var factoryCount = parseInt(readline()); // the number of factories
+    var linkCount = parseInt(readline()); // the number of links between factories
+    var distances = [];
+
+
+    for (var i = 0; i < linkCount; i++) {
+        var inputs = readline().split(' ');
+        var factory1 = parseInt(inputs[0]);
+        var factory2 = parseInt(inputs[1]);
+        var distance = parseInt(inputs[2]);
+
+        if(!distances[factory1]) {
+            distances[factory1] = [];
+        }
+
+        if(!distances[factory2]) {
+            distances[factory2] = [];
+        }
+
+        distances[factory1][factory2] = distance;
+        distances[factory2][factory1] = distance;
+    }
+
+    return {
+        distances,
+        factoryCount,
+        linkCount
+    }
+};
+
+/***/ }),
+/* 3 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -372,7 +365,7 @@ class Factories extends Array {
 
 
 /***/ }),
-/* 3 */
+/* 4 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -535,7 +528,39 @@ class Factory {
 
 
 /***/ }),
-/* 4 */
+/* 5 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony default export */ __webpack_exports__["a"] = function (distances) {
+    var size = distances.length,
+        moveMap = [];
+
+    for (var l = 0; l < size; l += 1) {
+        for (var m = 0; m < size; m += 1) {
+            if (!moveMap[l]) {
+                moveMap[l] = [];
+            }
+            moveMap[l].push(m);
+        }
+    }
+
+    for (var k = 0; k < size; k += 1) {
+        for (var i = 0; i < size; i += 1) {
+            for (var j = 0; j < size; j += 1) {
+                if (distances[i][j] > distances[i][k] + distances[k][j]) {
+                    distances[i][j] = distances[i][k] + distances[k][j];
+                    moveMap[i][j] = k;
+                }
+            }
+        }
+    }
+    return moveMap;
+};
+
+
+/***/ }),
+/* 6 */
 /***/ (function(module, exports) {
 
 var g;
@@ -562,7 +587,7 @@ module.exports = g;
 
 
 /***/ }),
-/* 5 */
+/* 7 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -570,7 +595,7 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__constants__ = __webpack_require__(1);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__constants___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__constants__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Game__ = __webpack_require__(0);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__initialize__ = __webpack_require__(6);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__initialize__ = __webpack_require__(2);
 /*
  | Author: Tim Huijgen
  | Date Created: 25 February 2017
@@ -605,71 +630,112 @@ while(true) {
 }
 
 /***/ }),
-/* 6 */
+/* 8 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony default export */ __webpack_exports__["a"] = function() {
-    var factoryCount = parseInt(readline()); // the number of factories
-    var linkCount = parseInt(readline()); // the number of links between factories
-    var distances = [];
+class Bombs {
 
-
-    for (var i = 0; i < linkCount; i++) {
-        var inputs = readline().split(' ');
-        var factory1 = parseInt(inputs[0]);
-        var factory2 = parseInt(inputs[1]);
-        var distance = parseInt(inputs[2]);
-
-        if(!distances[factory1]) {
-            distances[factory1] = [];
-        }
-
-        if(!distances[factory2]) {
-            distances[factory2] = [];
-        }
-
-        distances[factory1][factory2] = distance;
-        distances[factory2][factory1] = distance;
+    constructor(game) {
+        this.game = game;
+        this.bombs_left = 2;
+        this.bombs = [];
+        this.timeout = 0;
     }
 
-    return {
-        distances,
-        factoryCount,
-        linkCount
+    update(entity) {
+
     }
-};
+
+    bomb(from_factory, to_factory) {
+        var action = 'BOMB ' + from_factory.id + ' ' + to_factory.id;
+
+        this.bombs_left--;
+        this.game.actions.push(action);
+    }
+
+    available() {
+        return this.bombs_left > 0 && this.timeout === 0;
+    }
+
+    lowerTimeout() {
+        if(this.timeout !== 0) {
+            this.timeout--;
+        }
+    }
+
+    handle() {
+        this.lowerTimeout();
+
+        if(!this.available()) {
+            return;
+        }
+
+        var enemy = this.game.factories.enemy().filter(factory => {
+            return factory.production >= 2
+        }).sort((a, b) => {
+            return b.threat() - a.threat();
+        }).first();
+
+        if (enemy) {
+            var factory = enemy.closestEnemyFactory();
+            if (factory) {
+                this.game.message('Here; have a bomb :)');
+                this.bomb(factory, enemy);
+                this.timeout = 10;
+                this.game.queue.push({
+                    action: 'attackDirect',
+                    factory_id_to: enemy.id,
+                    factory_id_from: factory.id
+                });
+            }
+        }
+    }
+
+}
+/* harmony export (immutable) */ __webpack_exports__["a"] = Bombs;
+
 
 /***/ }),
-/* 7 */
+/* 9 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony default export */ __webpack_exports__["a"] = function (distances) {
-    var size = distances.length,
-        moveMap = [];
+class Queue extends Array {
 
-    for (var l = 0; l < size; l += 1) {
-        for (var m = 0; m < size; m += 1) {
-            if (!moveMap[l]) {
-                moveMap[l] = [];
-            }
-            moveMap[l].push(m);
-        }
+    constructor(game) {
+        super();
+        this.game = game;
     }
 
-    for (var k = 0; k < size; k += 1) {
-        for (var i = 0; i < size; i += 1) {
-            for (var j = 0; j < size; j += 1) {
-                if (distances[i][j] > distances[i][k] + distances[k][j]) {
-                    distances[i][j] = distances[i][k] + distances[k][j];
-                    moveMap[i][j] = k;
-                }
-            }
-        }
+    handle() {
+        this.forEach(item => this[item.action].call(this, item));
+
+        this.clear();
     }
-    return moveMap;
-};
+
+    attack() {
+
+    }
+
+    clear() {
+        this.splice(0, this.length);
+    }
+
+    attackDirect(item) {
+        var factory = this.game.factories.find(factory => {
+            return factory.id === item.factory_id_to
+        });
+
+        var myFactory = this.game.factories.find(factory => {
+            return factory.id === item.factory_id_from
+        });
+
+        this.game.moveDirect(myFactory, factory, myFactory.freeRobots());
+    }
+
+}
+/* harmony export (immutable) */ __webpack_exports__["a"] = Queue;
 
 
 /***/ })

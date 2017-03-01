@@ -1,5 +1,7 @@
 import Factories from './Factories';
 import Factory from './Factory';
+import Bombs from './Bombs';
+import Queue from './Queue';
 import FloydWarshall from './FloydWarshall';
 
 export default class Game {
@@ -7,11 +9,10 @@ export default class Game {
     constructor(params) {
         this.actions = [];
         this.factories = new Factories();
+        this.bombs = new Bombs(this);
+        this.queue = new Queue(this);
         this.troops = [];
-        this.bombs = [];
         this.turn = 0;
-        this.bombs_left = 2;
-        this.queue = [];
         this.distances = params.distances;
         this.moveMap = FloydWarshall(params.distances);
     }
@@ -23,14 +24,13 @@ export default class Game {
         this.actions = [];
         this.factories = new Factories();
         this.troops = [];
-        this.bombs = [];
 
         for (var i = 0; i < entityCount; i++) {
             var inputs = readline().split(' ');
             var entity = getEntityProps(inputs);
 
             if(TROOP === entity.type) this.troops.push(entity);
-            if(BOMB === entity.type) this.bombs.push(entity);
+            if(BOMB === entity.type) this.bombs.update(entity);
             if(FACTORY === entity.type) this.factories.push(new Factory(entity, this));
         }
 
@@ -40,22 +40,9 @@ export default class Game {
     tick() {
         this.initTick();
 
-        if(this.queue.length) {
-            this.queue.forEach(item => {
-                if(item.action === 'attack') {
-                    var factory = this.factories.find(factory => {
-                        return factory.id === item.factory_id_to
-                    });
+        this.queue.handle();
 
-                    var myFactory = this.factories.find(factory => {
-                        return factory.id === item.factory_id_from
-                    });
-
-                    this.moveDirect(myFactory, factory, myFactory.freeRobots());
-                }
-            });
-            this.queue = [];
-        }
+        this.bombs.handle();
 
         this.factories.attacking().forEach(factory => {
 
@@ -96,27 +83,6 @@ export default class Game {
 
         });
 
-        if(this.canBomb()) {
-            var enemy = this.factories.enemy().filter(factory => {
-                return factory.production >= 2 && factory.count >= 8
-            }).sort((a, b) => {
-                return b.threat() - a.threat();
-            }).first();
-
-            var factory;
-            if (enemy) {
-                if (factory = enemy.closestEnemyFactory()) {
-                    this.bomb(factory, enemy);
-                    this.queue.push({
-                        action: 'attack',
-                        factory_id_to: enemy.id,
-                        factory_id_from: factory.id
-                    });
-                }
-            }
-        }
-
-
         this.execute();
     }
 
@@ -147,17 +113,6 @@ export default class Game {
 
     message(message) {
         this.actions.push('MSG ' + message);
-    }
-
-    bomb(from_factory, to_factory) {
-        var action = 'BOMB ' + from_factory.id + ' ' + to_factory.id;
-
-        this.bombs_left--;
-        this.actions.push(action);
-    }
-
-    canBomb() {
-        return this.bombs_left > 0;
     }
 
     execute() {
