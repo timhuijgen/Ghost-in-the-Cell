@@ -12,17 +12,17 @@ export default class Factories extends Array {
             return factory.owner === ME
         }).sort(this[sort]);
     }
-    free(sort = 'byThreat', scope = null) {
+    free(sort = 'byPriority', scope = null) {
         return this.filter(factory => {
             return factory.owner === FREE
         }).sort(this[sort].bind(scope));
     }
-    notMine(sort = 'byThreat', scope = null) {
+    notMine(sort = 'byPriority', scope = null) {
         return this.filter(factory => {
             return factory.owner !== ME
         }).sort(this[sort].bind(scope));
     }
-    enemy(sort = 'byThreat') {
+    enemy(sort = 'byPriority') {
         return this.filter(factory => {
             return factory.owner === ENEMY
         }).sort(this[sort]);
@@ -40,6 +40,12 @@ export default class Factories extends Array {
         }).sort(this[sort].bind(scope));
     }
 
+    byId(id) {
+        return this.find(factory => {
+            return factory.id === id
+        });
+    }
+
     clear() {
 
     }
@@ -52,8 +58,8 @@ export default class Factories extends Array {
         return b.production - a.production;
     }
 
-    byThreat(a, b) {
-        return b.threat(this) - a.threat(this);
+    byPriority(a, b) {
+        return b.priority(this) - a.priority(this);
     }
 
     canDefend(factory) {

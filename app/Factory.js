@@ -76,20 +76,20 @@ export default class Factory {
     }
 
 
-    threat(factory = false) {
+    priority(factory = false) {
         if(this.production === 0) return 0;
 
-        var threat_count = 0;
+        var priority = 0;
 
         if(factory) {
-            threat_count += (20 - this.distanceTo(factory)) * 4;
+            priority += (20 - this.distanceTo(factory)) * 4;
         }
 
-        threat_count += this.production * 10;
+        priority += this.production * 10;
 
-        threat_count -= this.count / 2;
+        priority -= this.count / 2;
 
-        return threat_count;
+        return priority;
     }
 
     defend() {

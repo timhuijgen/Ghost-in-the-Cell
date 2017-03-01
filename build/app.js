@@ -141,7 +141,7 @@ class Game {
 
             if(!factory.freeRobots()) return;
 
-            this.factories.notMine('byThreat', factory).forEach(otherFactory => {
+            this.factories.notMine('byPriority', factory).forEach(otherFactory => {
 
                 var dist = factory.distanceTo(otherFactory),
                     troopCount = otherFactory.count + 1 + otherFactory.hasEnemyTroopsInbound() - otherFactory.hasMyTroopsInbound();
@@ -310,17 +310,17 @@ class Factories extends Array {
             return factory.owner === ME
         }).sort(this[sort]);
     }
-    free(sort = 'byThreat', scope = null) {
+    free(sort = 'byPriority', scope = null) {
         return this.filter(factory => {
             return factory.owner === FREE
         }).sort(this[sort].bind(scope));
     }
-    notMine(sort = 'byThreat', scope = null) {
+    notMine(sort = 'byPriority', scope = null) {
         return this.filter(factory => {
             return factory.owner !== ME
         }).sort(this[sort].bind(scope));
     }
-    enemy(sort = 'byThreat') {
+    enemy(sort = 'byPriority') {
         return this.filter(factory => {
             return factory.owner === ENEMY
         }).sort(this[sort]);
@@ -338,6 +338,12 @@ class Factories extends Array {
         }).sort(this[sort].bind(scope));
     }
 
+    byId(id) {
+        return this.find(factory => {
+            return factory.id === id
+        });
+    }
+
     clear() {
 
     }
@@ -350,8 +356,8 @@ class Factories extends Array {
         return b.production - a.production;
     }
 
-    byThreat(a, b) {
-        return b.threat(this) - a.threat(this);
+    byPriority(a, b) {
+        return b.priority(this) - a.priority(this);
     }
 
     canDefend(factory) {
@@ -447,20 +453,20 @@ class Factory {
     }
 
 
-    threat(factory = false) {
+    priority(factory = false) {
         if(this.production === 0) return 0;
 
-        var threat_count = 0;
+        var priority = 0;
 
         if(factory) {
-            threat_count += (20 - this.distanceTo(factory)) * 4;
+            priority += (20 - this.distanceTo(factory)) * 4;
         }
 
-        threat_count += this.production * 10;
+        priority += this.production * 10;
 
-        threat_count -= this.count / 2;
+        priority -= this.count / 2;
 
-        return threat_count;
+        return priority;
     }
 
     defend() {
@@ -674,7 +680,7 @@ class Bombs {
         var enemy = this.game.factories.enemy().filter(factory => {
             return factory.production >= 2
         }).sort((a, b) => {
-            return b.threat() - a.threat();
+            return b.priority() - a.priority();
         }).first();
 
         if (enemy) {
@@ -683,7 +689,8 @@ class Bombs {
                 this.game.message('Here; have a bomb :)');
                 this.bomb(factory, enemy);
                 this.timeout = 10;
-                this.game.queue.push({
+                // Queue an attack for next turn
+                this.game.queue.add(this.game.turn + 1, {
                     action: 'attackDirect',
                     factory_id_to: enemy.id,
                     factory_id_from: factory.id
@@ -701,35 +708,33 @@ class Bombs {
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-class Queue extends Array {
+class Queue {
 
     constructor(game) {
-        super();
         this.game = game;
+        this.queue = {};
     }
 
     handle() {
-        this.forEach(item => this[item.action].call(this, item));
+        if(!this.queue[this.game.turn]) return;
 
-        this.clear();
+        this.queue[this.game.turn].forEach(item => this[item.action].call(this, item));
     }
 
     attack() {
 
     }
 
-    clear() {
-        this.splice(0, this.length);
+    add(turn, action) {
+        if(!this.queue[turn]) {
+            this.queue[turn] = [];
+        }
+        this.queue[turn].push(action);
     }
 
     attackDirect(item) {
-        var factory = this.game.factories.find(factory => {
-            return factory.id === item.factory_id_to
-        });
-
-        var myFactory = this.game.factories.find(factory => {
-            return factory.id === item.factory_id_from
-        });
+        var factory = this.game.factories.byId(item.factory_id_to);
+        var myFactory = this.game.factories.byId(item.factory_id_from);
 
         this.game.moveDirect(myFactory, factory, myFactory.freeRobots());
     }

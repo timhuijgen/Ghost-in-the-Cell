@@ -38,7 +38,7 @@ export default class Bombs {
         var enemy = this.game.factories.enemy().filter(factory => {
             return factory.production >= 2
         }).sort((a, b) => {
-            return b.threat() - a.threat();
+            return b.priority() - a.priority();
         }).first();
 
         if (enemy) {
@@ -47,7 +47,8 @@ export default class Bombs {
                 this.game.message('Here; have a bomb :)');
                 this.bomb(factory, enemy);
                 this.timeout = 10;
-                this.game.queue.push({
+                // Queue an attack for next turn
+                this.game.queue.add(this.game.turn + 1, {
                     action: 'attackDirect',
                     factory_id_to: enemy.id,
                     factory_id_from: factory.id

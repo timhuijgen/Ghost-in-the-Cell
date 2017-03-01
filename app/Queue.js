@@ -1,32 +1,30 @@
-export default class Queue extends Array {
+export default class Queue {
 
     constructor(game) {
-        super();
         this.game = game;
+        this.queue = {};
     }
 
     handle() {
-        this.forEach(item => this[item.action].call(this, item));
+        if(!this.queue[this.game.turn]) return;
 
-        this.clear();
+        this.queue[this.game.turn].forEach(item => this[item.action].call(this, item));
     }
 
     attack() {
 
     }
 
-    clear() {
-        this.splice(0, this.length);
+    add(turn, action) {
+        if(!this.queue[turn]) {
+            this.queue[turn] = [];
+        }
+        this.queue[turn].push(action);
     }
 
     attackDirect(item) {
-        var factory = this.game.factories.find(factory => {
-            return factory.id === item.factory_id_to
-        });
-
-        var myFactory = this.game.factories.find(factory => {
-            return factory.id === item.factory_id_from
-        });
+        var factory = this.game.factories.byId(item.factory_id_to);
+        var myFactory = this.game.factories.byId(item.factory_id_from);
 
         this.game.moveDirect(myFactory, factory, myFactory.freeRobots());
     }

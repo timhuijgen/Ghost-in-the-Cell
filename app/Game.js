@@ -63,7 +63,7 @@ export default class Game {
 
             if(!factory.freeRobots()) return;
 
-            this.factories.notMine('byThreat', factory).forEach(otherFactory => {
+            this.factories.notMine('byPriority', factory).forEach(otherFactory => {
 
                 var dist = factory.distanceTo(otherFactory),
                     troopCount = otherFactory.count + 1 + otherFactory.hasEnemyTroopsInbound() - otherFactory.hasMyTroopsInbound();
