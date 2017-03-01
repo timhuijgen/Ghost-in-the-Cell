@@ -63,7 +63,7 @@
 /******/ 	__webpack_require__.p = "";
 
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 7);
+/******/ 	return __webpack_require__(__webpack_require__.s = 9);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -71,11 +71,11 @@
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Factories__ = __webpack_require__(3);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Factory__ = __webpack_require__(4);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Bombs__ = __webpack_require__(8);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Queue__ = __webpack_require__(9);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__FloydWarshall__ = __webpack_require__(5);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Factories__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Factory__ = __webpack_require__(5);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Bombs__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Queue__ = __webpack_require__(7);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__FloydWarshall__ = __webpack_require__(6);
 
 
 
@@ -122,7 +122,7 @@ class Game {
 
         this.bombs.handle();
 
-        var defending = this.factories.defending().byPriority(); // .slice(0, 2);
+        var defending = this.factories.defending().byPriority().slice(0, 1);
         var targets = this.factories.notMine().byPriority();
         var carrier = this.factories.mine().byPriority().first();
         var actions = defending.concat(targets).sort((a, b) => {
@@ -135,6 +135,8 @@ class Game {
 
                 dump(actionFactory.dump());
                 dump(actionFactory.priority(carrier));
+
+                if(!factory.freeRobots()) return;
 
                 actionFactory.isMine()
                     ? factory.defend(actionFactory)
@@ -149,24 +151,21 @@ class Game {
 
 
     move(from_factory, to_factory, count) {
-        if(count < 1) return;
-
-        if(!from_factory.isMine()) return;
-
-        from_factory.reserveForAttack(count);
-
         var newTarget = this.moveMap[from_factory.id][to_factory.id];
-
-        var action = 'MOVE ' + from_factory.id + ' ' + newTarget + ' ' + count;
-        this.actions.push(action);
+        this._move(from_factory, newTarget, count);
     }
 
     moveDirect(from_factory, to_factory, count) {
+        this._move(from_factory, to_factory, count);
+    }
+
+    _move(from_factory, to_factory, count) {
         if(count < 1) return;
 
         if(!from_factory.isMine()) return;
 
         from_factory.reserveForAttack(count);
+        to_factory.reinforcementsIncoming(count);
 
         var action = 'MOVE ' + from_factory.id + ' ' + to_factory.id + ' ' + count;
         this.actions.push(action);
@@ -240,7 +239,7 @@ global.flip = function(num) {
 
 Array.prototype.first = function() { return (this.length > 0) ? this[0] : false; };
 Array.prototype.last = function() { return (this.length > 0) ? this[this.length - 1] : false; };
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(6)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(8)))
 
 /***/ }),
 /* 2 */
@@ -283,89 +282,166 @@ Array.prototype.last = function() { return (this.length > 0) ? this[this.length 
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
+class Bombs {
+
+    constructor(game) {
+        this.game = game;
+        this.bombs_left = 2;
+        this.bombs = [];
+        this.timeout = 0;
+    }
+
+    update(entity) {
+
+    }
+
+    bomb(from_factory, to_factory) {
+        var action = 'BOMB ' + from_factory.id + ' ' + to_factory.id;
+
+        this.bombs_left--;
+        this.game.actions.push(action);
+    }
+
+    available() {
+        return this.bombs_left > 0 && this.timeout === 0;
+    }
+
+    lowerTimeout() {
+        if(this.timeout !== 0) {
+            this.timeout--;
+        }
+    }
+
+    handle() {
+        this.lowerTimeout();
+
+        if(!this.available()) {
+            return;
+        }
+
+        var enemy = this.game.factories.enemy().filter(factory => {
+            return factory.production >= 2
+        }).sort((a, b) => {
+            return b.priority() - a.priority();
+        }).first();
+
+        if (enemy) {
+            var factory = enemy.closestEnemyFactory();
+            if (factory) {
+                this.game.message('Here; have a bomb :)');
+                this.bomb(factory, enemy);
+                this.timeout = 10;
+                // Queue an attack for next turn
+                this.game.queue.add(this.game.turn + 1, {
+                    action: 'attackDirect',
+                    factory_id_to: enemy.id,
+                    factory_id_from: factory.id
+                });
+            }
+        }
+    }
+
+}
+/* harmony export (immutable) */ __webpack_exports__["a"] = Bombs;
+
+
+/***/ }),
+/* 4 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
 class Factories extends Array {
-    init() {
+    init () {
         this.mine().forEach(Factory => Factory.shouldDefend());
     }
 
-    all() {
+    all () {
         return this;
     }
 
-    mine() {
+    mine () {
         return this.filter(factory => {
             return factory.owner === ME
         });
     }
-    free() {
+
+    free () {
         return this.filter(factory => {
             return factory.owner === FREE
         });
     }
-    notMine() {
+
+    notMine () {
         return this.filter(factory => {
             return factory.owner !== ME
         });
     }
-    enemy() {
+
+    enemy () {
         return this.filter(factory => {
             return factory.owner === ENEMY
         });
     }
 
-    defending() {
+    defending () {
         return this.mine().hasProduction().filter(factory => {
             return factory.isDefending()
         });
     }
 
-    hasProduction() {
+    hasProduction () {
         return this.filter(factory => {
             return factory.production !== 0
         });
     }
 
-    available() {
+    available () {
         return this.mine().filter(factory => {
             return factory.available()
         });
     }
 
-    byId(id) {
+    byId (id) {
         return this.find(factory => {
             return factory.id === id
         });
     }
 
-    clear() {
+    clear () {
 
     }
 
-    byRobotCount() {
-        return this.sort((a,b ) => {
+    byRobotCount () {
+        return this.sort((a, b) => {
             return b.count - a.count;
         });
     }
 
-    byProduction() {
-        return this.sort((a,b ) => {
+    byProduction () {
+        return this.sort((a, b) => {
             return b.production - a.production;
         });
     }
 
-    byPriority() {
-        return this.sort((a,b ) => {
+    byPriority () {
+        return this.sort((a, b) => {
             return b.priority() - a.priority();
         });
     }
 
-    canDefend(factory) {
+    byDistanceTo(factory) {
+        return this.sort((a, b) => {
+            return a.distanceTo(factory) - b.distanceTo(factory);
+        });
+    }
+
+    canDefend (factory) {
         return this.reduce((a, b) => {
                 return (a.freeRobots() || 0) + (b.freeRobots() || 0)
             }, 0) > factory.reinforcementsNeeded()
     }
 
-    checkIncrease() {
+    checkIncrease () {
         this.filter(factory => {
             return factory.freeRobots() > 40 && factory.production !== 3;
         }).forEach(factory => this.game.increase(factory));
@@ -376,7 +452,7 @@ class Factories extends Array {
 
 
 /***/ }),
-/* 4 */
+/* 5 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -477,31 +553,25 @@ class Factory {
             priority -= this.count;
         }
 
-        if(this.isMine()) {
-            priority *= 0.8;
-        }
+        //if(this.isMine()) {
+        //    priority *= 0.8;
+        //}
 
         return priority;
     }
 
     shouldDefend() {
+        if(this.production === 0) return;
 
         this.incomingEnemyTroops().forEach(troop => {
             if(this.freeRobots() + (this.production * troop.turns_for_arrival) < troop.count) {
-                if(this.production === 0) {
-                    //this.abandonSHIP();
-                } else {
-
-                    this.reserveForDefence(this.count);
-
-                    if(!this.defendTable.hasOwnProperty(this.game.turn + troop.turns_for_arrival)) {
-                        this.defendTable[this.game.turn + troop.turns_for_arrival] = 0;
-                    }
-                    this.defendTable[
-                        this.game.turn + troop.turns_for_arrival
-                    ] += troop.count - (this.count + (this.production * troop.turns_for_arrival));
-
-                }
+                this.reserveForDefence(this.count);
+                //if(!this.defendTable.hasOwnProperty(this.game.turn + troop.turns_for_arrival)) {
+                //    this.defendTable[this.game.turn + troop.turns_for_arrival] = 0;
+                //}
+                //this.defendTable[
+                //    this.game.turn + troop.turns_for_arrival
+                //] += troop.count - (this.count + (this.production * troop.turns_for_arrival));
             } else {
                 this.reserveForDefence(troop.count);
             }
@@ -515,7 +585,6 @@ class Factory {
             troops_needed > 0
         ) {
             var sending = Math.min(this.freeRobots(), troops_needed);
-            factory.reinforcementsIncoming(sending);
             this.game.move(this, factory, sending );
             return true;
         }
@@ -527,7 +596,7 @@ class Factory {
         if(factory.isFree() && factory.production === 0) return false;
 
         var dist = this.distanceTo(factory),
-            troopCount = factory.count + 1 + factory.hasEnemyTroopsInbound() - factory.hasMyTroopsInbound();
+            troopCount = (factory.count + 1 + factory.hasEnemyTroopsInbound()) - factory.hasMyTroopsInbound();
 
         if(factory.isEnemy()) {
             troopCount += dist * factory.production;
@@ -606,7 +675,7 @@ class Factory {
 
 
 /***/ }),
-/* 5 */
+/* 6 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -638,141 +707,7 @@ class Factory {
 
 
 /***/ }),
-/* 6 */
-/***/ (function(module, exports) {
-
-var g;
-
-// This works in non-strict mode
-g = (function() {
-	return this;
-})();
-
-try {
-	// This works if eval is allowed (see CSP)
-	g = g || Function("return this")() || (1,eval)("this");
-} catch(e) {
-	// This works if the window reference is available
-	if(typeof window === "object")
-		g = window;
-}
-
-// g can still be undefined, but nothing to do about it...
-// We return undefined, instead of nothing here, so it's
-// easier to handle this case. if(!global) { ...}
-
-module.exports = g;
-
-
-/***/ }),
 /* 7 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__constants__ = __webpack_require__(1);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__constants___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__constants__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Game__ = __webpack_require__(0);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__initialize__ = __webpack_require__(2);
-/*
- | Author: Tim Huijgen
- | Date Created: 25 February 2017
- |
- | Ghost in the CELL
- */
-
-
-
-
-
-/**
- *
- * Next steps
- *
- * Implement minimum robot counts based on priority
- *
- * Code to overtake factory after enemy takeover
- *
- * Better priority calculations
- *
- */
-
-var game = new __WEBPACK_IMPORTED_MODULE_1__Game__["a" /* default */](__webpack_require__.i(__WEBPACK_IMPORTED_MODULE_2__initialize__["a" /* default */])());
-
-while(true) {
-    game.tick();
-}
-
-/***/ }),
-/* 8 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-class Bombs {
-
-    constructor(game) {
-        this.game = game;
-        this.bombs_left = 2;
-        this.bombs = [];
-        this.timeout = 0;
-    }
-
-    update(entity) {
-
-    }
-
-    bomb(from_factory, to_factory) {
-        var action = 'BOMB ' + from_factory.id + ' ' + to_factory.id;
-
-        this.bombs_left--;
-        this.game.actions.push(action);
-    }
-
-    available() {
-        return this.bombs_left > 0 && this.timeout === 0;
-    }
-
-    lowerTimeout() {
-        if(this.timeout !== 0) {
-            this.timeout--;
-        }
-    }
-
-    handle() {
-        this.lowerTimeout();
-
-        if(!this.available()) {
-            return;
-        }
-
-        var enemy = this.game.factories.enemy().filter(factory => {
-            return factory.production >= 2
-        }).sort((a, b) => {
-            return b.priority() - a.priority();
-        }).first();
-
-        if (enemy) {
-            var factory = enemy.closestEnemyFactory();
-            if (factory) {
-                this.game.message('Here; have a bomb :)');
-                this.bomb(factory, enemy);
-                this.timeout = 10;
-                // Queue an attack for next turn
-                this.game.queue.add(this.game.turn + 1, {
-                    action: 'attackDirect',
-                    factory_id_to: enemy.id,
-                    factory_id_from: factory.id
-                });
-            }
-        }
-    }
-
-}
-/* harmony export (immutable) */ __webpack_exports__["a"] = Bombs;
-
-
-/***/ }),
-/* 9 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -810,6 +745,71 @@ class Queue {
 }
 /* harmony export (immutable) */ __webpack_exports__["a"] = Queue;
 
+
+/***/ }),
+/* 8 */
+/***/ (function(module, exports) {
+
+var g;
+
+// This works in non-strict mode
+g = (function() {
+	return this;
+})();
+
+try {
+	// This works if eval is allowed (see CSP)
+	g = g || Function("return this")() || (1,eval)("this");
+} catch(e) {
+	// This works if the window reference is available
+	if(typeof window === "object")
+		g = window;
+}
+
+// g can still be undefined, but nothing to do about it...
+// We return undefined, instead of nothing here, so it's
+// easier to handle this case. if(!global) { ...}
+
+module.exports = g;
+
+
+/***/ }),
+/* 9 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__constants__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__constants___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__constants__);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Game__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__initialize__ = __webpack_require__(2);
+/*
+ | Author: Tim Huijgen
+ | Date Created: 25 February 2017
+ |
+ | Ghost in the CELL
+ */
+
+
+
+
+
+/**
+ *
+ * Next steps
+ *
+ * Implement minimum robot counts based on priority
+ * Code to overtake factory after enemy takeover
+ * Better priority calculations
+ * Anti bomb code
+ * Attack target from distributed factories instead of 1 to overtake all
+ */
+
+var game = new __WEBPACK_IMPORTED_MODULE_1__Game__["a" /* default */](__webpack_require__.i(__WEBPACK_IMPORTED_MODULE_2__initialize__["a" /* default */])());
+
+while(true) {
+    game.tick();
+}
 
 /***/ })
 /******/ ]);

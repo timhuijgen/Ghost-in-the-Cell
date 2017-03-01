@@ -95,31 +95,25 @@ export default class Factory {
             priority -= this.count;
         }
 
-        if(this.isMine()) {
-            priority *= 0.8;
-        }
+        //if(this.isMine()) {
+        //    priority *= 0.8;
+        //}
 
         return priority;
     }
 
     shouldDefend() {
+        if(this.production === 0) return;
 
         this.incomingEnemyTroops().forEach(troop => {
             if(this.freeRobots() + (this.production * troop.turns_for_arrival) < troop.count) {
-                if(this.production === 0) {
-                    //this.abandonSHIP();
-                } else {
-
-                    this.reserveForDefence(this.count);
-
-                    if(!this.defendTable.hasOwnProperty(this.game.turn + troop.turns_for_arrival)) {
-                        this.defendTable[this.game.turn + troop.turns_for_arrival] = 0;
-                    }
-                    this.defendTable[
-                        this.game.turn + troop.turns_for_arrival
-                    ] += troop.count - (this.count + (this.production * troop.turns_for_arrival));
-
-                }
+                this.reserveForDefence(this.count);
+                //if(!this.defendTable.hasOwnProperty(this.game.turn + troop.turns_for_arrival)) {
+                //    this.defendTable[this.game.turn + troop.turns_for_arrival] = 0;
+                //}
+                //this.defendTable[
+                //    this.game.turn + troop.turns_for_arrival
+                //] += troop.count - (this.count + (this.production * troop.turns_for_arrival));
             } else {
                 this.reserveForDefence(troop.count);
             }
@@ -133,7 +127,6 @@ export default class Factory {
             troops_needed > 0
         ) {
             var sending = Math.min(this.freeRobots(), troops_needed);
-            factory.reinforcementsIncoming(sending);
             this.game.move(this, factory, sending );
             return true;
         }
@@ -145,7 +138,7 @@ export default class Factory {
         if(factory.isFree() && factory.production === 0) return false;
 
         var dist = this.distanceTo(factory),
-            troopCount = factory.count + 1 + factory.hasEnemyTroopsInbound() - factory.hasMyTroopsInbound();
+            troopCount = (factory.count + 1 + factory.hasEnemyTroopsInbound()) - factory.hasMyTroopsInbound();
 
         if(factory.isEnemy()) {
             troopCount += dist * factory.production;

@@ -44,7 +44,7 @@ export default class Game {
 
         this.bombs.handle();
 
-        var defending = this.factories.defending().byPriority(); // .slice(0, 2);
+        var defending = this.factories.defending().byPriority().slice(0, 1);
         var targets = this.factories.notMine().byPriority();
         var carrier = this.factories.mine().byPriority().first();
         var actions = defending.concat(targets).sort((a, b) => {
@@ -57,6 +57,8 @@ export default class Game {
 
                 dump(actionFactory.dump());
                 dump(actionFactory.priority(carrier));
+
+                if(!factory.freeRobots()) return;
 
                 actionFactory.isMine()
                     ? factory.defend(actionFactory)
@@ -71,24 +73,21 @@ export default class Game {
 
 
     move(from_factory, to_factory, count) {
-        if(count < 1) return;
-
-        if(!from_factory.isMine()) return;
-
-        from_factory.reserveForAttack(count);
-
         var newTarget = this.moveMap[from_factory.id][to_factory.id];
-
-        var action = 'MOVE ' + from_factory.id + ' ' + newTarget + ' ' + count;
-        this.actions.push(action);
+        this._move(from_factory, newTarget, count);
     }
 
     moveDirect(from_factory, to_factory, count) {
+        this._move(from_factory, to_factory, count);
+    }
+
+    _move(from_factory, to_factory, count) {
         if(count < 1) return;
 
         if(!from_factory.isMine()) return;
 
         from_factory.reserveForAttack(count);
+        to_factory.reinforcementsIncoming(count);
 
         var action = 'MOVE ' + from_factory.id + ' ' + to_factory.id + ' ' + count;
         this.actions.push(action);

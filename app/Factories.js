@@ -1,86 +1,95 @@
 export default class Factories extends Array {
-    init() {
+    init () {
         this.mine().forEach(Factory => Factory.shouldDefend());
     }
 
-    all() {
+    all () {
         return this;
     }
 
-    mine() {
+    mine () {
         return this.filter(factory => {
             return factory.owner === ME
         });
     }
-    free() {
+
+    free () {
         return this.filter(factory => {
             return factory.owner === FREE
         });
     }
-    notMine() {
+
+    notMine () {
         return this.filter(factory => {
             return factory.owner !== ME
         });
     }
-    enemy() {
+
+    enemy () {
         return this.filter(factory => {
             return factory.owner === ENEMY
         });
     }
 
-    defending() {
+    defending () {
         return this.mine().hasProduction().filter(factory => {
             return factory.isDefending()
         });
     }
 
-    hasProduction() {
+    hasProduction () {
         return this.filter(factory => {
             return factory.production !== 0
         });
     }
 
-    available() {
+    available () {
         return this.mine().filter(factory => {
             return factory.available()
         });
     }
 
-    byId(id) {
+    byId (id) {
         return this.find(factory => {
             return factory.id === id
         });
     }
 
-    clear() {
+    clear () {
 
     }
 
-    byRobotCount() {
-        return this.sort((a,b ) => {
+    byRobotCount () {
+        return this.sort((a, b) => {
             return b.count - a.count;
         });
     }
 
-    byProduction() {
-        return this.sort((a,b ) => {
+    byProduction () {
+        return this.sort((a, b) => {
             return b.production - a.production;
         });
     }
 
-    byPriority() {
-        return this.sort((a,b ) => {
+    byPriority () {
+        return this.sort((a, b) => {
             return b.priority() - a.priority();
         });
     }
 
-    canDefend(factory) {
+    byDistanceTo(factory) {
+        return this.sort((a, b) => {
+            return a.distanceTo(factory) - b.distanceTo(factory);
+        });
+    }
+
+    canDefend (factory) {
         return this.reduce((a, b) => {
                 return (a.freeRobots() || 0) + (b.freeRobots() || 0)
             }, 0) > factory.reinforcementsNeeded()
     }
 
-    checkIncrease() {
+    checkIncrease () {
         this.filter(factory => {
             return factory.freeRobots() > 40 && factory.production !== 3;
         }).forEach(factory => this.game.increase(factory));
