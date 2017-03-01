@@ -29,6 +29,10 @@ export default class Factory {
         return this.owner === ENEMY;
     }
 
+    isFree() {
+        return this.owner === FREE;
+    }
+
     hasEnemyTroopsInbound() {
         return this.incomingEnemyTroops()
             .reduce((a, b) => {
@@ -85,18 +89,25 @@ export default class Factory {
             priority += (20 - this.distanceTo(factory)) * 4;
         }
 
-        priority += this.production * 10;
+        priority += this.production * 15;
 
-        priority -= this.count / 2;
+        if(!this.isMine()) {
+            priority -= this.count;
+        }
+
+        if(this.isMine()) {
+            priority *= 0.8;
+        }
 
         return priority;
     }
 
-    defend() {
+    shouldDefend() {
+
         this.incomingEnemyTroops().forEach(troop => {
             if(this.freeRobots() + (this.production * troop.turns_for_arrival) < troop.count) {
                 if(this.production === 0) {
-                    this.abandonSHIP();
+                    //this.abandonSHIP();
                 } else {
 
                     this.reserveForDefence(this.count);
@@ -115,8 +126,50 @@ export default class Factory {
         });
     }
 
+    defend(factory) {
+        var troops_needed = factory.reinforcementsNeeded();
+
+        if(
+            troops_needed > 0
+        ) {
+            var sending = Math.min(this.freeRobots(), troops_needed);
+            factory.reinforcementsIncoming(sending);
+            this.game.move(this, factory, sending );
+            return true;
+        }
+
+        return false;
+    }
+
+    attack(factory) {
+        if(factory.isFree() && factory.production === 0) return false;
+
+        var dist = this.distanceTo(factory),
+            troopCount = factory.count + 1 + factory.hasEnemyTroopsInbound() - factory.hasMyTroopsInbound();
+
+        if(factory.isEnemy()) {
+            troopCount += dist * factory.production;
+        }
+
+        if(troopCount <= 0) return false;
+
+        if(
+            troopCount + 1 < this.freeRobots() || (this.production === 0)
+        ) {
+            this.game.move(this, factory, Math.min(troopCount + 1, this.freeRobots()));
+
+            return true;
+        }
+
+        return false;
+    }
+
     isDefending() {
-        return this.freeRobots() < 0;
+        return this.reinforcementsNeeded() > 0;
+    }
+
+    available() {
+        return this.freeRobots() > 0;
     }
 
     reinforcementsNeeded() {
@@ -152,4 +205,18 @@ export default class Factory {
     abandonSHIP() {
         this.game.move(this, this.closestAllyFactory(), this.count);
     }
+
+    margin() {
+        return this.production * 2;
+    }
+
+    dump() {
+        var props = {};
+        for(var key in this) {
+            if(key == 'game') continue;
+            props[key] = this[key];
+        }
+        return props;
+    }
+
 }

@@ -122,44 +122,27 @@ class Game {
 
         this.bombs.handle();
 
-        this.factories.attacking().forEach(factory => {
-
-            this.factories.defending().forEach(defendingFactory => {
-
-                var troops_needed = defendingFactory.reinforcementsNeeded();
-
-                if(
-                    troops_needed
-                ) {
-                    var sending = factory.freeRobots();
-                    if(troops_needed < sending) sending = troops_needed;
-
-                    defendingFactory.reinforcementsIncoming(sending)
-                    this.move(factory, defendingFactory, sending );
-                }
-            });
-
-            if(!factory.freeRobots()) return;
-
-            this.factories.notMine('byPriority', factory).forEach(otherFactory => {
-
-                var dist = factory.distanceTo(otherFactory),
-                    troopCount = otherFactory.count + 1 + otherFactory.hasEnemyTroopsInbound() - otherFactory.hasMyTroopsInbound();
-
-                if(otherFactory.isEnemy()) {
-                    troopCount += dist * otherFactory.production;
-                }
-
-                if(
-                    troopCount + 1 < factory.freeRobots()
-                ) {
-                    this.move(factory, otherFactory, troopCount + 1);
-                }
-
-            });
-
-
+        var defending = this.factories.defending().byPriority(); // .slice(0, 2);
+        var targets = this.factories.notMine().byPriority();
+        var carrier = this.factories.mine().byPriority().first();
+        var actions = defending.concat(targets).sort((a, b) => {
+            return b.priority(carrier) - a.priority(carrier);
         });
+
+        this.factories.available().forEach(factory => {
+
+            actions.forEach(actionFactory => {
+
+                dump(actionFactory.dump());
+                dump(actionFactory.priority(carrier));
+
+                actionFactory.isMine()
+                    ? factory.defend(actionFactory)
+                    : factory.attack(actionFactory);
+            });
+        });
+
+        this.factories.checkIncrease();
 
         this.execute();
     }
@@ -187,6 +170,10 @@ class Game {
 
         var action = 'MOVE ' + from_factory.id + ' ' + to_factory.id + ' ' + count;
         this.actions.push(action);
+    }
+
+    increase(factory) {
+        this.actions.push('INC ' + factory.id);
     }
 
     message(message) {
@@ -298,44 +285,50 @@ Array.prototype.last = function() { return (this.length > 0) ? this[this.length 
 "use strict";
 class Factories extends Array {
     init() {
-        this.mine().forEach(Factory => Factory.defend());
+        this.mine().forEach(Factory => Factory.shouldDefend());
     }
 
-    all(sort = 'byRobotCount') {
-        return this[sort];
+    all() {
+        return this;
     }
 
-    mine(sort = 'byRobotCount') {
+    mine() {
         return this.filter(factory => {
             return factory.owner === ME
-        }).sort(this[sort]);
+        });
     }
-    free(sort = 'byPriority', scope = null) {
+    free() {
         return this.filter(factory => {
             return factory.owner === FREE
-        }).sort(this[sort].bind(scope));
+        });
     }
-    notMine(sort = 'byPriority', scope = null) {
+    notMine() {
         return this.filter(factory => {
             return factory.owner !== ME
-        }).sort(this[sort].bind(scope));
+        });
     }
-    enemy(sort = 'byPriority') {
+    enemy() {
         return this.filter(factory => {
             return factory.owner === ENEMY
-        }).sort(this[sort]);
+        });
     }
 
-    defending(sort = 'byProduction') {
-        return this.filter(factory => {
-            return factory.isDefending() && factory.owner === ME && factory.production > 1
-        }).sort(this[sort]);
+    defending() {
+        return this.mine().hasProduction().filter(factory => {
+            return factory.isDefending()
+        });
     }
 
-    attacking(sort = 'byRobotCount', scope = null) {
+    hasProduction() {
         return this.filter(factory => {
-            return !factory.isDefending() && factory.owner === ME
-        }).sort(this[sort].bind(scope));
+            return factory.production !== 0
+        });
+    }
+
+    available() {
+        return this.mine().filter(factory => {
+            return factory.available()
+        });
     }
 
     byId(id) {
@@ -348,22 +341,34 @@ class Factories extends Array {
 
     }
 
-    byRobotCount(a, b) {
-        return b.count - a.count;
+    byRobotCount() {
+        return this.sort((a,b ) => {
+            return b.count - a.count;
+        });
     }
 
-    byProduction(a, b) {
-        return b.production - a.production;
+    byProduction() {
+        return this.sort((a,b ) => {
+            return b.production - a.production;
+        });
     }
 
-    byPriority(a, b) {
-        return b.priority(this) - a.priority(this);
+    byPriority() {
+        return this.sort((a,b ) => {
+            return b.priority() - a.priority();
+        });
     }
 
     canDefend(factory) {
         return this.reduce((a, b) => {
                 return (a.freeRobots() || 0) + (b.freeRobots() || 0)
             }, 0) > factory.reinforcementsNeeded()
+    }
+
+    checkIncrease() {
+        this.filter(factory => {
+            return factory.freeRobots() > 40 && factory.production !== 3;
+        }).forEach(factory => this.game.increase(factory));
     }
 
 }
@@ -404,6 +409,10 @@ class Factory {
 
     isEnemy() {
         return this.owner === ENEMY;
+    }
+
+    isFree() {
+        return this.owner === FREE;
     }
 
     hasEnemyTroopsInbound() {
@@ -462,18 +471,25 @@ class Factory {
             priority += (20 - this.distanceTo(factory)) * 4;
         }
 
-        priority += this.production * 10;
+        priority += this.production * 15;
 
-        priority -= this.count / 2;
+        if(!this.isMine()) {
+            priority -= this.count;
+        }
+
+        if(this.isMine()) {
+            priority *= 0.8;
+        }
 
         return priority;
     }
 
-    defend() {
+    shouldDefend() {
+
         this.incomingEnemyTroops().forEach(troop => {
             if(this.freeRobots() + (this.production * troop.turns_for_arrival) < troop.count) {
                 if(this.production === 0) {
-                    this.abandonSHIP();
+                    //this.abandonSHIP();
                 } else {
 
                     this.reserveForDefence(this.count);
@@ -492,8 +508,50 @@ class Factory {
         });
     }
 
+    defend(factory) {
+        var troops_needed = factory.reinforcementsNeeded();
+
+        if(
+            troops_needed > 0
+        ) {
+            var sending = Math.min(this.freeRobots(), troops_needed);
+            factory.reinforcementsIncoming(sending);
+            this.game.move(this, factory, sending );
+            return true;
+        }
+
+        return false;
+    }
+
+    attack(factory) {
+        if(factory.isFree() && factory.production === 0) return false;
+
+        var dist = this.distanceTo(factory),
+            troopCount = factory.count + 1 + factory.hasEnemyTroopsInbound() - factory.hasMyTroopsInbound();
+
+        if(factory.isEnemy()) {
+            troopCount += dist * factory.production;
+        }
+
+        if(troopCount <= 0) return false;
+
+        if(
+            troopCount + 1 < this.freeRobots() || (this.production === 0)
+        ) {
+            this.game.move(this, factory, Math.min(troopCount + 1, this.freeRobots()));
+
+            return true;
+        }
+
+        return false;
+    }
+
     isDefending() {
-        return this.freeRobots() < 0;
+        return this.reinforcementsNeeded() > 0;
+    }
+
+    available() {
+        return this.freeRobots() > 0;
     }
 
     reinforcementsNeeded() {
@@ -529,6 +587,20 @@ class Factory {
     abandonSHIP() {
         this.game.move(this, this.closestAllyFactory(), this.count);
     }
+
+    margin() {
+        return this.production * 2;
+    }
+
+    dump() {
+        var props = {};
+        for(var key in this) {
+            if(key == 'game') continue;
+            props[key] = this[key];
+        }
+        return props;
+    }
+
 }
 /* harmony export (immutable) */ __webpack_exports__["a"] = Factory;
 
@@ -617,17 +689,13 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  *
  * Next steps
  *
- * Implement minimum robot counts
+ * Implement minimum robot counts based on priority
  *
  * Code to overtake factory after enemy takeover
  *
- * Fix threat calculations & sorting
- *
- * Send robots after bombs
+ * Better priority calculations
  *
  */
-
-
 
 var game = new __WEBPACK_IMPORTED_MODULE_1__Game__["a" /* default */](__webpack_require__.i(__WEBPACK_IMPORTED_MODULE_2__initialize__["a" /* default */])());
 

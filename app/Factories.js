@@ -1,43 +1,49 @@
 export default class Factories extends Array {
     init() {
-        this.mine().forEach(Factory => Factory.defend());
+        this.mine().forEach(Factory => Factory.shouldDefend());
     }
 
-    all(sort = 'byRobotCount') {
-        return this[sort];
+    all() {
+        return this;
     }
 
-    mine(sort = 'byRobotCount') {
+    mine() {
         return this.filter(factory => {
             return factory.owner === ME
-        }).sort(this[sort]);
+        });
     }
-    free(sort = 'byPriority', scope = null) {
+    free() {
         return this.filter(factory => {
             return factory.owner === FREE
-        }).sort(this[sort].bind(scope));
+        });
     }
-    notMine(sort = 'byPriority', scope = null) {
+    notMine() {
         return this.filter(factory => {
             return factory.owner !== ME
-        }).sort(this[sort].bind(scope));
+        });
     }
-    enemy(sort = 'byPriority') {
+    enemy() {
         return this.filter(factory => {
             return factory.owner === ENEMY
-        }).sort(this[sort]);
+        });
     }
 
-    defending(sort = 'byProduction') {
-        return this.filter(factory => {
-            return factory.isDefending() && factory.owner === ME && factory.production > 1
-        }).sort(this[sort]);
+    defending() {
+        return this.mine().hasProduction().filter(factory => {
+            return factory.isDefending()
+        });
     }
 
-    attacking(sort = 'byRobotCount', scope = null) {
+    hasProduction() {
         return this.filter(factory => {
-            return !factory.isDefending() && factory.owner === ME
-        }).sort(this[sort].bind(scope));
+            return factory.production !== 0
+        });
+    }
+
+    available() {
+        return this.mine().filter(factory => {
+            return factory.available()
+        });
     }
 
     byId(id) {
@@ -50,22 +56,34 @@ export default class Factories extends Array {
 
     }
 
-    byRobotCount(a, b) {
-        return b.count - a.count;
+    byRobotCount() {
+        return this.sort((a,b ) => {
+            return b.count - a.count;
+        });
     }
 
-    byProduction(a, b) {
-        return b.production - a.production;
+    byProduction() {
+        return this.sort((a,b ) => {
+            return b.production - a.production;
+        });
     }
 
-    byPriority(a, b) {
-        return b.priority(this) - a.priority(this);
+    byPriority() {
+        return this.sort((a,b ) => {
+            return b.priority() - a.priority();
+        });
     }
 
     canDefend(factory) {
         return this.reduce((a, b) => {
                 return (a.freeRobots() || 0) + (b.freeRobots() || 0)
             }, 0) > factory.reinforcementsNeeded()
+    }
+
+    checkIncrease() {
+        this.filter(factory => {
+            return factory.freeRobots() > 40 && factory.production !== 3;
+        }).forEach(factory => this.game.increase(factory));
     }
 
 }

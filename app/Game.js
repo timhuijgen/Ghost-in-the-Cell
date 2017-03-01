@@ -44,44 +44,27 @@ export default class Game {
 
         this.bombs.handle();
 
-        this.factories.attacking().forEach(factory => {
-
-            this.factories.defending().forEach(defendingFactory => {
-
-                var troops_needed = defendingFactory.reinforcementsNeeded();
-
-                if(
-                    troops_needed
-                ) {
-                    var sending = factory.freeRobots();
-                    if(troops_needed < sending) sending = troops_needed;
-
-                    defendingFactory.reinforcementsIncoming(sending)
-                    this.move(factory, defendingFactory, sending );
-                }
-            });
-
-            if(!factory.freeRobots()) return;
-
-            this.factories.notMine('byPriority', factory).forEach(otherFactory => {
-
-                var dist = factory.distanceTo(otherFactory),
-                    troopCount = otherFactory.count + 1 + otherFactory.hasEnemyTroopsInbound() - otherFactory.hasMyTroopsInbound();
-
-                if(otherFactory.isEnemy()) {
-                    troopCount += dist * otherFactory.production;
-                }
-
-                if(
-                    troopCount + 1 < factory.freeRobots()
-                ) {
-                    this.move(factory, otherFactory, troopCount + 1);
-                }
-
-            });
-
-
+        var defending = this.factories.defending().byPriority(); // .slice(0, 2);
+        var targets = this.factories.notMine().byPriority();
+        var carrier = this.factories.mine().byPriority().first();
+        var actions = defending.concat(targets).sort((a, b) => {
+            return b.priority(carrier) - a.priority(carrier);
         });
+
+        this.factories.available().forEach(factory => {
+
+            actions.forEach(actionFactory => {
+
+                dump(actionFactory.dump());
+                dump(actionFactory.priority(carrier));
+
+                actionFactory.isMine()
+                    ? factory.defend(actionFactory)
+                    : factory.attack(actionFactory);
+            });
+        });
+
+        this.factories.checkIncrease();
 
         this.execute();
     }
@@ -109,6 +92,10 @@ export default class Game {
 
         var action = 'MOVE ' + from_factory.id + ' ' + to_factory.id + ' ' + count;
         this.actions.push(action);
+    }
+
+    increase(factory) {
+        this.actions.push('INC ' + factory.id);
     }
 
     message(message) {

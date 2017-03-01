@@ -13,17 +13,13 @@ import initialize from './initialize';
  *
  * Next steps
  *
- * Implement minimum robot counts
+ * Implement minimum robot counts based on priority
  *
  * Code to overtake factory after enemy takeover
  *
- * Fix threat calculations & sorting
- *
- * Send robots after bombs
+ * Better priority calculations
  *
  */
-
-
 
 var game = new Game(initialize());
 
