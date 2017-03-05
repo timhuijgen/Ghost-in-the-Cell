@@ -1,6 +1,16 @@
+import Factory from './Factory';
+
 export default class Factories extends Array {
-    init () {
-        this.mine().forEach(Factory => Factory.shouldDefend());
+    push(entity, game) {
+        var factory = this.byId(entity.id);
+
+        factory
+            ? factory.update(entity)
+            : super.push(new Factory(entity, game));
+    }
+
+    handle () {
+        this.mine().forEach(Factory => Factory.handle());
     }
 
     all () {
@@ -55,10 +65,6 @@ export default class Factories extends Array {
         });
     }
 
-    clear () {
-
-    }
-
     byRobotCount () {
         return this.sort((a, b) => {
             return b.count - a.count;
@@ -84,15 +90,22 @@ export default class Factories extends Array {
     }
 
     canDefend (factory) {
-        return this.reduce((a, b) => {
+        return this.mine().reduce((a, b) => {
                 return (a.freeRobots() || 0) + (b.freeRobots() || 0)
             }, 0) > factory.reinforcementsNeeded()
     }
 
-    checkIncrease () {
-        this.filter(factory => {
-            return factory.freeRobots() > 40 && factory.production !== 3;
-        }).forEach(factory => factory.increase());
+    checkIncrease (game) {
+        if(game.turn % 10 !== 0) return;
+
+        var candidate = this.mine()
+            .filter(factory => {
+                return factory.production !== 3 && factory.queued_for_increase === false
+            })
+            .byPriority()
+            .first();
+
+        if(candidate) candidate.increase();
     }
 
 }

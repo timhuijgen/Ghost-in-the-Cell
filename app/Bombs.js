@@ -48,7 +48,7 @@ export default class Bombs {
                 this.bomb(factory, enemy);
                 this.timeout = 10;
                 // Queue an attack for next turn
-                this.game.queue.add(this.game.turn + 1, {
+                this.game.queue.add(this.game.turn + 3, {
                     action: 'attackDirect',
                     factory_id_to: enemy.id,
                     factory_id_from: factory.id

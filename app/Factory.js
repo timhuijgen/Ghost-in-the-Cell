@@ -10,15 +10,26 @@ export default class Factory {
         this.keep_for_defence = 0;
         this.away_on_attack = 0;
         this.incoming_for_defence = 0;
+        this.incoming_for_attack = 0;
         this.defendTable = {};
+        this.queued_for_increase = false;
+
     }
 
     update(factory) {
         this.owner = factory.owner;
         this.count = factory.count;
         this.production = factory.production;
+        this.keep_for_defence = 0;
+        this.away_on_attack = 0;
+        this.incoming_for_defence = 0;
+        this.incoming_for_attack = 0;
         this.defendTable = {};
+    }
 
+    handle() {
+        this.shouldDefend();
+        this.shouldIncrease();
     }
 
     isMine() {
@@ -92,12 +103,12 @@ export default class Factory {
         priority += this.production * 15;
 
         if(!this.isMine()) {
-            priority -= this.count;
+            priority -= this.count + this.hasEnemyTroopsInbound();
         }
 
-        //if(this.isMine()) {
-        //    priority *= 0.8;
-        //}
+        if(this.isFree()) {
+            priority += 10;
+        }
 
         return priority;
     }
@@ -137,19 +148,21 @@ export default class Factory {
     attack(factory) {
         if(factory.isFree() && factory.production === 0) return false;
 
-        var dist = this.distanceTo(factory),
+        var dist = this.distanceTo(factory) + 1,
             troopCount = (factory.count + 1 + factory.hasEnemyTroopsInbound()) - factory.hasMyTroopsInbound();
 
         if(factory.isEnemy()) {
             troopCount += dist * factory.production;
         }
 
+        troopCount -= this.incoming_for_attack;
+
         if(troopCount <= 0) return false;
 
         if(
-            troopCount + 1 < this.freeRobots() || (this.production === 0)
+            troopCount + 2 < this.freeRobots() || (this.production === 0)
         ) {
-            this.game.move(this, factory, Math.min(troopCount + 1, this.freeRobots()));
+            this.game.move(this, factory, Math.min(troopCount + 2, this.freeRobots()));
 
             return true;
         }
@@ -195,6 +208,10 @@ export default class Factory {
         this.incoming_for_defence += amount;
     }
 
+    attackIncoming(amount) {
+        this.incoming_for_attack += amount;
+    }
+
     abandonSHIP() {
         this.game.move(this, this.closestAllyFactory(), this.count);
     }
@@ -204,7 +221,20 @@ export default class Factory {
     }
 
     increase() {
-        this.game.increase(this);
+        if(this.freeRobots() >= 10) {
+            dump('Increasing factory ' + this.id);
+            this.game.increase(this);
+            return this.reserveForDefence(10);
+        }
+        dump('Queueing for increase factory ' + this.id);
+        this.queued_for_increase = true;
+    }
+
+    shouldIncrease() {
+        if(this.queued_for_increase) {
+            this.queued_for_increase = false;
+            this.increase();
+        }
     }
 
     dump() {

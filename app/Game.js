@@ -1,5 +1,4 @@
 import Factories from './Factories';
-import Factory from './Factory';
 import Bombs from './Bombs';
 import Queue from './Queue';
 import FloydWarshall from './FloydWarshall';
@@ -22,7 +21,6 @@ export default class Game {
 
         this.turn ++;
         this.actions = [];
-        this.factories = new Factories();
         this.troops = [];
 
         for (var i = 0; i < entityCount; i++) {
@@ -31,14 +29,14 @@ export default class Game {
 
             if(TROOP === entity.type) this.troops.push(entity);
             if(BOMB === entity.type) this.bombs.update(entity);
-            if(FACTORY === entity.type) this.factories.push(new Factory(entity, this));
+            if(FACTORY === entity.type) this.factories.push(entity, this);
         }
-
-        this.factories.init();
     }
 
     tick() {
         this.initTick();
+
+        this.factories.handle();
 
         this.queue.handle();
 
@@ -55,10 +53,7 @@ export default class Game {
 
             actions.forEach(actionFactory => {
 
-                dump(actionFactory.dump());
-                dump(actionFactory.priority(carrier));
-
-                if(!factory.freeRobots()) return;
+                dump(actionFactory.priority(carrier) + ' ' + actionFactory.dump().id + ' ' + actionFactory.dump().owner);
 
                 actionFactory.isMine()
                     ? factory.defend(actionFactory)
@@ -66,7 +61,7 @@ export default class Game {
             });
         });
 
-        this.factories.checkIncrease();
+        this.factories.checkIncrease(this);
 
         this.execute();
     }
@@ -88,7 +83,11 @@ export default class Game {
         from_factory.reserveForAttack(count);
         if(to_factory.isMine()) {
             to_factory.reinforcementsIncoming(count);
+        } else {
+            to_factory.attackIncoming(count);
         }
+
+        if(this.turn < 2) direct = true;
 
         var target = direct
             ? to_factory.id

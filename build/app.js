@@ -72,11 +72,9 @@
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Factories__ = __webpack_require__(4);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Factory__ = __webpack_require__(5);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Bombs__ = __webpack_require__(3);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Queue__ = __webpack_require__(7);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__FloydWarshall__ = __webpack_require__(6);
-
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Bombs__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Queue__ = __webpack_require__(7);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__FloydWarshall__ = __webpack_require__(6);
 
 
 
@@ -87,12 +85,12 @@ class Game {
     constructor(params) {
         this.actions = [];
         this.factories = new __WEBPACK_IMPORTED_MODULE_0__Factories__["a" /* default */]();
-        this.bombs = new __WEBPACK_IMPORTED_MODULE_2__Bombs__["a" /* default */](this);
-        this.queue = new __WEBPACK_IMPORTED_MODULE_3__Queue__["a" /* default */](this);
+        this.bombs = new __WEBPACK_IMPORTED_MODULE_1__Bombs__["a" /* default */](this);
+        this.queue = new __WEBPACK_IMPORTED_MODULE_2__Queue__["a" /* default */](this);
         this.troops = [];
         this.turn = 0;
         this.distances = params.distances;
-        this.moveMap = __webpack_require__.i(__WEBPACK_IMPORTED_MODULE_4__FloydWarshall__["a" /* default */])(params.distances);
+        this.moveMap = __webpack_require__.i(__WEBPACK_IMPORTED_MODULE_3__FloydWarshall__["a" /* default */])(params.distances);
     }
 
     initTick() {
@@ -100,7 +98,6 @@ class Game {
 
         this.turn ++;
         this.actions = [];
-        this.factories = new __WEBPACK_IMPORTED_MODULE_0__Factories__["a" /* default */]();
         this.troops = [];
 
         for (var i = 0; i < entityCount; i++) {
@@ -109,14 +106,14 @@ class Game {
 
             if(TROOP === entity.type) this.troops.push(entity);
             if(BOMB === entity.type) this.bombs.update(entity);
-            if(FACTORY === entity.type) this.factories.push(new __WEBPACK_IMPORTED_MODULE_1__Factory__["a" /* default */](entity, this));
+            if(FACTORY === entity.type) this.factories.push(entity, this);
         }
-
-        this.factories.init();
     }
 
     tick() {
         this.initTick();
+
+        this.factories.handle();
 
         this.queue.handle();
 
@@ -133,10 +130,7 @@ class Game {
 
             actions.forEach(actionFactory => {
 
-                dump(actionFactory.dump());
-                dump(actionFactory.priority(carrier));
-
-                if(!factory.freeRobots()) return;
+                dump(actionFactory.priority(carrier) + ' ' + actionFactory.dump().id + ' ' + actionFactory.dump().owner);
 
                 actionFactory.isMine()
                     ? factory.defend(actionFactory)
@@ -144,7 +138,7 @@ class Game {
             });
         });
 
-        this.factories.checkIncrease();
+        this.factories.checkIncrease(this);
 
         this.execute();
     }
@@ -166,7 +160,11 @@ class Game {
         from_factory.reserveForAttack(count);
         if(to_factory.isMine()) {
             to_factory.reinforcementsIncoming(count);
+        } else {
+            to_factory.attackIncoming(count);
         }
+
+        if(this.turn < 2) direct = true;
 
         var target = direct
             ? to_factory.id
@@ -337,7 +335,7 @@ class Bombs {
                 this.bomb(factory, enemy);
                 this.timeout = 10;
                 // Queue an attack for next turn
-                this.game.queue.add(this.game.turn + 1, {
+                this.game.queue.add(this.game.turn + 3, {
                     action: 'attackDirect',
                     factory_id_to: enemy.id,
                     factory_id_from: factory.id
@@ -355,9 +353,20 @@ class Bombs {
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Factory__ = __webpack_require__(5);
+
+
 class Factories extends Array {
-    init () {
-        this.mine().forEach(Factory => Factory.shouldDefend());
+    push(entity, game) {
+        var factory = this.byId(entity.id);
+
+        factory
+            ? factory.update(entity)
+            : super.push(new __WEBPACK_IMPORTED_MODULE_0__Factory__["a" /* default */](entity, game));
+    }
+
+    handle () {
+        this.mine().forEach(Factory => Factory.handle());
     }
 
     all () {
@@ -412,10 +421,6 @@ class Factories extends Array {
         });
     }
 
-    clear () {
-
-    }
-
     byRobotCount () {
         return this.sort((a, b) => {
             return b.count - a.count;
@@ -441,15 +446,22 @@ class Factories extends Array {
     }
 
     canDefend (factory) {
-        return this.reduce((a, b) => {
+        return this.mine().reduce((a, b) => {
                 return (a.freeRobots() || 0) + (b.freeRobots() || 0)
             }, 0) > factory.reinforcementsNeeded()
     }
 
-    checkIncrease () {
-        this.filter(factory => {
-            return factory.freeRobots() > 40 && factory.production !== 3;
-        }).forEach(factory => factory.increase());
+    checkIncrease (game) {
+        if(game.turn % 10 !== 0) return;
+
+        var candidate = this.mine()
+            .filter(factory => {
+                return factory.production !== 3 && factory.queued_for_increase === false
+            })
+            .byPriority()
+            .first();
+
+        if(candidate) candidate.increase();
     }
 
 }
@@ -473,15 +485,26 @@ class Factory {
         this.keep_for_defence = 0;
         this.away_on_attack = 0;
         this.incoming_for_defence = 0;
+        this.incoming_for_attack = 0;
         this.defendTable = {};
+        this.queued_for_increase = false;
+
     }
 
     update(factory) {
         this.owner = factory.owner;
         this.count = factory.count;
         this.production = factory.production;
+        this.keep_for_defence = 0;
+        this.away_on_attack = 0;
+        this.incoming_for_defence = 0;
+        this.incoming_for_attack = 0;
         this.defendTable = {};
+    }
 
+    handle() {
+        this.shouldDefend();
+        this.shouldIncrease();
     }
 
     isMine() {
@@ -555,12 +578,12 @@ class Factory {
         priority += this.production * 15;
 
         if(!this.isMine()) {
-            priority -= this.count;
+            priority -= this.count + this.hasEnemyTroopsInbound();
         }
 
-        //if(this.isMine()) {
-        //    priority *= 0.8;
-        //}
+        if(this.isFree()) {
+            priority += 10;
+        }
 
         return priority;
     }
@@ -600,19 +623,21 @@ class Factory {
     attack(factory) {
         if(factory.isFree() && factory.production === 0) return false;
 
-        var dist = this.distanceTo(factory),
+        var dist = this.distanceTo(factory) + 1,
             troopCount = (factory.count + 1 + factory.hasEnemyTroopsInbound()) - factory.hasMyTroopsInbound();
 
         if(factory.isEnemy()) {
             troopCount += dist * factory.production;
         }
 
+        troopCount -= this.incoming_for_attack;
+
         if(troopCount <= 0) return false;
 
         if(
-            troopCount + 1 < this.freeRobots() || (this.production === 0)
+            troopCount + 2 < this.freeRobots() || (this.production === 0)
         ) {
-            this.game.move(this, factory, Math.min(troopCount + 1, this.freeRobots()));
+            this.game.move(this, factory, Math.min(troopCount + 2, this.freeRobots()));
 
             return true;
         }
@@ -658,6 +683,10 @@ class Factory {
         this.incoming_for_defence += amount;
     }
 
+    attackIncoming(amount) {
+        this.incoming_for_attack += amount;
+    }
+
     abandonSHIP() {
         this.game.move(this, this.closestAllyFactory(), this.count);
     }
@@ -667,7 +696,20 @@ class Factory {
     }
 
     increase() {
-        this.game.increase(this);
+        if(this.freeRobots() >= 10) {
+            dump('Increasing factory ' + this.id);
+            this.game.increase(this);
+            return this.reserveForDefence(10);
+        }
+        dump('Queueing for increase factory ' + this.id);
+        this.queued_for_increase = true;
+    }
+
+    shouldIncrease() {
+        if(this.queued_for_increase) {
+            this.queued_for_increase = false;
+            this.increase();
+        }
     }
 
     dump() {
