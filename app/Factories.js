@@ -42,8 +42,14 @@ export default class Factories extends Array {
     }
 
     defending () {
-        return this.mine().hasProduction().filter(factory => {
+        return this.mine().filter(factory => {
             return factory.isDefending()
+        });
+    }
+
+    enoughUnderway() {
+        return this.filter(factory => {
+            return factory.needsAttackingTroops() === false
         });
     }
 

@@ -114,7 +114,7 @@ export default class Factory {
     }
 
     shouldDefend() {
-        if(this.production === 0) return;
+        //if(this.production === 0) return;
 
         this.incomingEnemyTroops().forEach(troop => {
             if(this.freeRobots() + (this.production * troop.turns_for_arrival) < troop.count) {
@@ -146,7 +146,7 @@ export default class Factory {
     }
 
     attack(factory) {
-        if(factory.isFree() && factory.production === 0) return false;
+        //if(factory.isFree() && factory.production === 0) return false;
 
         var dist = this.distanceTo(factory) + 1,
             troopCount = (factory.count + 1 + factory.hasEnemyTroopsInbound()) - factory.hasMyTroopsInbound();
@@ -157,17 +157,26 @@ export default class Factory {
 
         troopCount -= this.incoming_for_attack;
 
-        if(troopCount <= 0) return false;
+        //if(troopCount <= 0) return false;
 
-        if(
-            troopCount + 2 < this.freeRobots() || (this.production === 0)
-        ) {
+        //if(
+        //    troopCount + 2 < this.freeRobots() /**|| (this.production === 0)**/
+        //) {
             this.game.move(this, factory, Math.min(troopCount + 2, this.freeRobots()));
 
             return true;
-        }
+        //}
 
         return false;
+    }
+
+    needsAttackingTroops() {
+        var
+            troopCount = (this.count + 1 + this.hasEnemyTroopsInbound()) - this.hasMyTroopsInbound();
+
+        troopCount -= this.incoming_for_attack;
+
+        return troopCount > 0;
     }
 
     isDefending() {

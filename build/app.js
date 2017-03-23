@@ -119,30 +119,55 @@ class Game {
 
         this.bombs.handle();
 
-        var defending = this.factories.defending().byPriority().slice(0, 1);
-        var targets = this.factories.notMine().byPriority();
-        var carrier = this.factories.mine().byPriority().first();
-        var actions = defending.concat(targets).sort((a, b) => {
-            return b.priority(carrier) - a.priority(carrier);
-        });
+        while(this.getActions().length && this.factories.available().length) {
 
-        this.factories.available().forEach(factory => {
+            //dump(this.getActions().length, this.factories.available().length);
 
-            actions.forEach(actionFactory => {
+            var actionFactory = this.getActions();
 
-                dump(actionFactory.priority(carrier) + ' ' + actionFactory.dump().id + ' ' + actionFactory.dump().owner);
+            dump('handling action factory ' + actionFactory.id + ' available ' + this.factories.available().length);
+
+            this.factories.available().forEach(factory => {
+                //dump(actionFactory.priority() + ' ' + actionFactory.dump().id + ' ' + actionFactory.dump().owner);
 
                 actionFactory.isMine()
                     ? factory.defend(actionFactory)
                     : factory.attack(actionFactory);
             });
-        });
+        }
+
+        //this.factories.available().forEach(factory => {
+        //
+        //    actions.forEach(actionFactory => {
+        //
+        //        dump(actionFactory.priority(carrier) + ' ' + actionFactory.dump().id + ' ' + actionFactory.dump().owner);
+        //
+        //        actionFactory.isMine()
+        //            ? factory.defend(actionFactory)
+        //            : factory.attack(actionFactory);
+        //    });
+        //});
 
         this.factories.checkIncrease(this);
 
         this.execute();
     }
 
+    getActions() {
+        var defending = this.factories.defending().byPriority(); //.first();
+        var targets = this.factories.notMine().enoughUnderway().byPriority();
+        var carrier = this.factories.mine().byPriority().first();
+
+        var actions = defending.length
+            ? defending.concat(targets)
+            : targets;
+
+        actions.sort((a, b) => {
+            return b.priority(carrier) - a.priority(carrier);
+        });
+
+        return actions;
+    }
 
     move(from_factory, to_factory, count) {
         this._move(from_factory, to_factory, count);
@@ -232,8 +257,8 @@ global.getEntityProps = function (inputs) {
 
     return data;
 };
-global.dump = function(a) {
-    printErr(JSON.stringify(a));
+global.dump = function(...args) {
+    args.forEach(arg => printErr(JSON.stringify(arg)));
 };
 
 global.flip = function(num) {
@@ -335,7 +360,7 @@ class Bombs {
                 this.bomb(factory, enemy);
                 this.timeout = 10;
                 // Queue an attack for next turn
-                this.game.queue.add(this.game.turn + 3, {
+                this.game.queue.add(this.game.turn + 1, {
                     action: 'attackDirect',
                     factory_id_to: enemy.id,
                     factory_id_from: factory.id
@@ -398,8 +423,14 @@ class Factories extends Array {
     }
 
     defending () {
-        return this.mine().hasProduction().filter(factory => {
+        return this.mine().filter(factory => {
             return factory.isDefending()
+        });
+    }
+
+    enoughUnderway() {
+        return this.filter(factory => {
+            return factory.needsAttackingTroops() === false
         });
     }
 
@@ -589,7 +620,7 @@ class Factory {
     }
 
     shouldDefend() {
-        if(this.production === 0) return;
+        //if(this.production === 0) return;
 
         this.incomingEnemyTroops().forEach(troop => {
             if(this.freeRobots() + (this.production * troop.turns_for_arrival) < troop.count) {
@@ -621,7 +652,7 @@ class Factory {
     }
 
     attack(factory) {
-        if(factory.isFree() && factory.production === 0) return false;
+        //if(factory.isFree() && factory.production === 0) return false;
 
         var dist = this.distanceTo(factory) + 1,
             troopCount = (factory.count + 1 + factory.hasEnemyTroopsInbound()) - factory.hasMyTroopsInbound();
@@ -632,17 +663,26 @@ class Factory {
 
         troopCount -= this.incoming_for_attack;
 
-        if(troopCount <= 0) return false;
+        //if(troopCount <= 0) return false;
 
-        if(
-            troopCount + 2 < this.freeRobots() || (this.production === 0)
-        ) {
+        //if(
+        //    troopCount + 2 < this.freeRobots() /**|| (this.production === 0)**/
+        //) {
             this.game.move(this, factory, Math.min(troopCount + 2, this.freeRobots()));
 
             return true;
-        }
+        //}
 
         return false;
+    }
+
+    needsAttackingTroops() {
+        var
+            troopCount = (this.count + 1 + this.hasEnemyTroopsInbound()) - this.hasMyTroopsInbound();
+
+        troopCount -= this.incoming_for_attack;
+
+        return troopCount > 0;
     }
 
     isDefending() {

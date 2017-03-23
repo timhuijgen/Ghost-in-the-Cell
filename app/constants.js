@@ -32,8 +32,8 @@ global.getEntityProps = function (inputs) {
 
     return data;
 };
-global.dump = function(a) {
-    printErr(JSON.stringify(a));
+global.dump = function(...args) {
+    args.forEach(arg => printErr(JSON.stringify(arg)));
 };
 
 global.flip = function(num) {

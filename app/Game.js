@@ -42,30 +42,55 @@ export default class Game {
 
         this.bombs.handle();
 
-        var defending = this.factories.defending().byPriority().slice(0, 1);
-        var targets = this.factories.notMine().byPriority();
-        var carrier = this.factories.mine().byPriority().first();
-        var actions = defending.concat(targets).sort((a, b) => {
-            return b.priority(carrier) - a.priority(carrier);
-        });
+        while(this.getActions().length && this.factories.available().length) {
 
-        this.factories.available().forEach(factory => {
+            //dump(this.getActions().length, this.factories.available().length);
 
-            actions.forEach(actionFactory => {
+            var actionFactory = this.getActions();
 
-                dump(actionFactory.priority(carrier) + ' ' + actionFactory.dump().id + ' ' + actionFactory.dump().owner);
+            dump('handling action factory ' + actionFactory.id + ' available ' + this.factories.available().length);
+
+            this.factories.available().forEach(factory => {
+                //dump(actionFactory.priority() + ' ' + actionFactory.dump().id + ' ' + actionFactory.dump().owner);
 
                 actionFactory.isMine()
                     ? factory.defend(actionFactory)
                     : factory.attack(actionFactory);
             });
-        });
+        }
+
+        //this.factories.available().forEach(factory => {
+        //
+        //    actions.forEach(actionFactory => {
+        //
+        //        dump(actionFactory.priority(carrier) + ' ' + actionFactory.dump().id + ' ' + actionFactory.dump().owner);
+        //
+        //        actionFactory.isMine()
+        //            ? factory.defend(actionFactory)
+        //            : factory.attack(actionFactory);
+        //    });
+        //});
 
         this.factories.checkIncrease(this);
 
         this.execute();
     }
 
+    getActions() {
+        var defending = this.factories.defending().byPriority(); //.first();
+        var targets = this.factories.notMine().enoughUnderway().byPriority();
+        var carrier = this.factories.mine().byPriority().first();
+
+        var actions = defending.length
+            ? defending.concat(targets)
+            : targets;
+
+        actions.sort((a, b) => {
+            return b.priority(carrier) - a.priority(carrier);
+        });
+
+        return actions;
+    }
 
     move(from_factory, to_factory, count) {
         this._move(from_factory, to_factory, count);
